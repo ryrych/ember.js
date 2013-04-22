@@ -67,22 +67,18 @@ test("actions scheduled on previous queue, start over from beginning", function(
       step = 0;
 
   bb.run(function() {
-    equal(step, 0, "0");
-    step++;
+    equal(step++, 0, "0");
 
     bb.schedule('two', null, function() {
-      equal(step, 1, "1");
-      step++;
+      equal(step++, 1, "1");
 
       bb.schedule('one', null, function() {
-        equal(step, 2, "2");
-        step++;
+        equal(step++, 2, "2");
       });
     });
 
     bb.schedule('two', null, function() {
-      equal(step, 3, "3");
-      step++;
+      equal(step++, 3, "3");
     });
   });
 
@@ -92,13 +88,31 @@ test("actions scheduled on previous queue, start over from beginning", function(
 test("runs can be nested", function() {
   expect(2);
 
-  var bb = new Backburner();
+  var bb = new Backburner(),
+      step = 0;
 
   bb.run(function() {
-    ok(true);
+    equal(step++, 0);
 
     bb.run(function() {
-      ok(true);
+      equal(step++, 1);
     });
   });
+});
+
+test("autorun", function() {
+  var bb = new Backburner(['zomg']),
+      step = 0;
+
+  ok(!bb.currentInstance, "The DeferredActionQueues object is lazily instaniated");
+  equal(step++, 0);
+
+  bb.schedule('zomg', null, function() {
+    start();
+    equal(step, 2);
+  });
+
+  ok(bb.currentInstance, "The DeferredActionQueues object exists");
+  equal(step++, 1);
+  stop();
 });

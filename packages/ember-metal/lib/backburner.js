@@ -6,8 +6,9 @@ X run
 X next/later?
 X waterfall
 X handle nested runloops
-- autorun
-- debounce / coalescing laters
+X autorun
+- debounce
+- coalesce laters
 - try/finally bullshit
 - onerror hook
 - ability to wrap flush - queue.aroundFlush = Ember.changeProperties
@@ -21,6 +22,13 @@ var slice = [].slice,
 var Backburner = Ember.Backburner = function(queueNames) {
   this.queueNames = queueNames;
 };
+
+function createAutorun(backburner) {
+  backburner.begin();
+  setTimeout(function() {
+    backburner.end();
+  });
+}
 
 Backburner.prototype = {
   queueNames: null,
@@ -60,6 +68,7 @@ Backburner.prototype = {
     // TODO: assert args?
     var stack = new Error().stack,
         args = arguments.length > 3 ? slice.call(arguments, 3) : undefined;
+    if (!this.currentInstance) { createAutorun(this); }
     this.currentInstance.schedule(queueName, target, method, args, false, stack);
   },
 
@@ -67,6 +76,7 @@ Backburner.prototype = {
     // TODO: assert args?
     var stack = new Error().stack,
         args = arguments.length > 3 ? slice.call(arguments, 3) : undefined;
+    if (!this.currentInstance) { createAutorun(this); }
     this.currentInstance.schedule(queueName, target, method, args, true, stack);
   },
 
