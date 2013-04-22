@@ -22,13 +22,22 @@ var Backburner = Ember.Backburner = function(queueNames) {
 Backburner.prototype = {
   queueNames: null,
   currentInstance: null,
+  previousInstance: null,
 
   begin: function() {
+    if (this.currentInstance) {
+      this.previousInstance = this.currentInstance;
+    }
     this.currentInstance = new DeferredActionQueues(this.queueNames);
   },
 
   end: function() {
     this.currentInstance.flush();
+    this.currentInstance = null;
+    if (this.previousInstance) {
+      this.currentInstance = this.previousInstance;
+      this.previousInstance = null;
+    }
   },
 
   run: function(target, method /*, args */) {
@@ -77,7 +86,7 @@ Backburner.prototype = {
   }
 };
 
-function DeferredActionQueues(queueNames) {
+DeferredActionQueues = function(queueNames) {
   var queues = this.queues = {};
   this.queueNames = queueNames = queueNames || [];
 

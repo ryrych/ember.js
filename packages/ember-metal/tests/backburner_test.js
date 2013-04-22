@@ -58,3 +58,17 @@ test("next when passed a function", function() {
 
   stop();
 });
+
+test("runs can be nested", function() {
+  expect(2);
+
+  var bb = new Backburner();
+
+  bb.run(function() {
+    ok(true);
+
+    bb.run(function() {
+      ok(true);
+    });
+  });
+});
