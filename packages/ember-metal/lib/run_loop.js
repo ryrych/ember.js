@@ -147,9 +147,7 @@ Ember.run.schedule = function(queue, target, method) {
 
 // Used by global test teardown
 Ember.run.hasScheduledTimers = function() {
-  //throw new Error('TODO: Ember.run.hasScheduledTimers');
-  console.log('TODO: Ember.run.hasScheduledTimers');
-  return false;
+  return backburner.hasTimers();
 };
 
 // Used by global test teardown
@@ -240,7 +238,8 @@ Ember.run.once = function(target, method) {
     method = target;
     target = null;
   }
-  return backburner.scheduleOnce('actions', target, method, slice.call(arguments, 2));
+  var args = ['actions', target, method].concat(slice.call(arguments, 2));
+  return backburner.scheduleOnce.apply(backburner, args);
 };
 
 /**
@@ -288,7 +287,8 @@ Ember.run.once = function(target, method) {
   @return {Object} timer
 */
 Ember.run.scheduleOnce = function(queue, target, method) {
-  return backburner.scheduleOnce(queue, target, method, slice.call(arguments, 3));
+  var args = [queue, target, method].concat(slice.call(arguments, 3));
+  return backburner.scheduleOnce.apply(backburner, args);
 };
 
 /**
@@ -378,5 +378,5 @@ Ember.run.next = function() {
   @return {void}
 */
 Ember.run.cancel = function(timer) {
-  throw new Error('TODO: Ember.run.cancel');
+  backburner.cancel(timer);
 };

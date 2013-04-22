@@ -1,4 +1,5 @@
-var Backburner = Ember.Backburner;
+var Backburner = Ember.Backburner,
+    originalDateValueOf = Date.prototype.valueOf;
 
 module("Backburner");
 
@@ -59,6 +60,45 @@ test("next when passed a function", function() {
   stop();
 });
 
+test("later", function() {
+  expect(6);
+
+  var bb = new Backburner(),
+      step = 0,
+      instance;
+
+  // Force +new Date to return the same result while scheduling
+  // run.later timers. Otherwise: non-determinism!
+  var now = +new Date();
+  Date.prototype.valueOf = function() { return now; };
+
+  stop();
+  bb.later(null, function() {
+    start();
+    instance = bb.currentInstance;
+    equal(step++, 0);
+  }, 10);
+
+  bb.later(null, function() {
+    equal(step++, 1);
+    equal(instance, bb.currentInstance, "same instance");
+  }, 10);
+
+  Date.prototype.valueOf = originalDateValueOf;
+
+  stop();
+  setTimeout(function() {
+    start();
+    equal(step++, 2);
+
+    stop();
+    bb.later(null, function() {
+      start();
+      equal(step++, 3);
+      ok(true, "Another later will execute correctly");
+    }, 1);
+  }, 20);
+});
 
 test("actions scheduled on previous queue, start over from beginning", function() {
   expect(5);

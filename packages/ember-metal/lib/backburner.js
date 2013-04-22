@@ -87,7 +87,7 @@ Backburner.prototype = {
     var stack = new Error().stack,
         args = arguments.length > 3 ? slice.call(arguments, 3) : undefined;
     if (!this.currentInstance) { createAutorun(this); }
-    this.currentInstance.schedule(queueName, target, method, args, false, stack);
+    return this.currentInstance.schedule(queueName, target, method, args, false, stack);
   },
 
   scheduleOnce: function(queueName, target, method /* , args */) {
@@ -95,25 +95,62 @@ Backburner.prototype = {
     var stack = new Error().stack,
         args = arguments.length > 3 ? slice.call(arguments, 3) : undefined;
     if (!this.currentInstance) { createAutorun(this); }
-    this.currentInstance.schedule(queueName, target, method, args, true, stack);
+    return this.currentInstance.schedule(queueName, target, method, args, true, stack);
   },
 
   next: function() {
     var self = this,
-        args = arguments;
-    setTimeout(function() {
-      self.run.apply(self, args);
-    });
+        args = slice.call(arguments);
+    args.push(1);
+    return this.later.apply(self, args);
   },
 
   later: function() {
-    var self = this,
-        args = arguments,
-        wait = pop.call(args);
+    console.log('later', arguments);
 
-    setTimeout(function() {
-      self.run.apply(self, args);
+    var self = this,
+        wait = pop.call(arguments),
+        target = arguments[0],
+        method = arguments[1],
+        executeAt = (+new Date()) + wait;
+
+    if (!method) {
+      method = target;
+      target = null;
+    }
+
+    if (typeof method === 'string') {
+      method = target[method];
+    }
+
+    var args = arguments.length > 2 ? slice.call(arguments, 2) : undefined;
+
+    // find position to insert - TODO: binary search
+    var i, l;
+    for (i = 0, l = timers.length; i < l; i += 2) {
+      if (executeAt < timers[i]) { break; }
+    }
+
+    console.log(target, method, args, i, executeAt);
+    var fn = function() {
+      method.apply(target, args);
+    };
+    timers.splice(i, 0, executeAt, fn);
+
+    if (laterTimer && laterTimerExpiresAt < executeAt) { return fn; }
+
+    if (laterTimer) {
+      clearTimeout(laterTimer);
+      laterTimer = null;
+    }
+    laterTimer = setTimeout(function() {
+      executeTimers(self);
+      laterTimer = null;
+      laterTimerExpiresAt = null;
     }, wait);
+    laterTimerExpiresAt = executeAt;
+
+    return fn;
   },
 
   debounce: function(target, method /* , args, wait */) {
@@ -152,10 +189,61 @@ Backburner.prototype = {
     }
 
     debouncees = [];
+  },
+
+  hasTimers: function() {
+    return !!timers.length;
+  },
+
+  cancel: function(timer) {
+    if (typeof timer === 'object' && timer.queue && timer.action) { // we're cancelling a once
+      timer.queue.cancel(timer.action);
+    } else if (typeof timer === 'function') { // we're cancelling a later fn
+      for (var i = 0, l = timers.length; i < l; i += 2) {
+        if (timers[i + 1] === timer) {
+          timers.splice(i, 2); // remove the two elements
+          return;
+        }
+      }
+    }
   }
 };
 
+var timers = [], laterTimer, laterTimerExpiresAt;
 var debouncees = [];
+
+function executeTimers(self) {
+  var now = +new Date(),
+      time, fn, fns, i, l;
+
+  self.begin();
+  console.log(timers);
+
+  // TODO: binary search
+  for (i = 0, l = timers.length; i < l; i += 2) {
+    time = timers[i];
+    if (time > now) {
+      break;
+    }
+  }
+  
+  fns = timers.splice(0, i);
+  console.log(now, fns);
+
+  for (i = 1, l = fns.length; i < l; i += 2) {
+    fn = fns[i];
+    fn();
+  }
+
+  self.end();
+
+  if (timers.length) {
+    laterTimer = setTimeout(function() {
+      executeTimers(self);
+    }, timers[0] - now);
+    laterTimerExpiresAt = timers[0];
+  }
+}
 
 DeferredActionQueues = function(queueNames) {
   var queues = this.queues = {};
@@ -173,15 +261,17 @@ DeferredActionQueues.prototype = {
   queues: null,
 
   schedule: function(queueName, target, method, args, onceFlag, stack) {
+    console.log('schedule', arguments);
+
     var queues = this.queues,
         queue = queues[queueName];
 
     if (!queue) { throw new Error("You attempted to schedule an action in a queue (" + queueName + ") that doesn't exist"); }
 
     if (onceFlag) {
-      queue.pushUnique(target, method, args, stack);
+      return queue.pushUnique(target, method, args, stack);
     } else {
-      queue.push(target, method, args, stack);
+      return queue.push(target, method, args, stack);
     }
   },
 
@@ -228,7 +318,10 @@ Queue.prototype = {
   _queue: null,
 
   push: function(target, method, args, stack) {
-    this._queue.push([target, method, args, stack]);
+    var queue = this._queue,
+        action = [target, method, args, stack];
+    queue.push(action);
+    return {queue: this, action: action};
   },
 
   shift: function() {
@@ -244,11 +337,13 @@ Queue.prototype = {
       if (action[0] === target && action[1] === method) {
         action[2] = args; // replace args
         action[3] = stack; // replace stack
-        return;
+        return action;
       }
     }
 
-    this._queue.push([target, method, args, stack]);
+    action = [target, method, args, stack];
+    this._queue.push(action);
+    return {queue: this, action: action};
   },
 
   flush: function() {
@@ -269,5 +364,18 @@ Queue.prototype = {
     }
 
     this._queue = [];
+  },
+
+  cancel: function(actionToCancel) {
+    var queue = this._queue, action, i, l;
+
+    for (i = 0, l = queue.length; i < l; i++) {
+      action = queue[i];
+
+      if (action[0] === actionToCancel[0] && action[1] === actionToCancel[1]) {
+        queue.splice(i, 1);
+        return;
+      }
+    }
   }
 };

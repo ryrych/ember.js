@@ -117,7 +117,6 @@ asyncTest('callbacks coalesce into same run loop if expiring at the same time', 
   function fn(val) { array.push(Ember.run.backburner.currentInstance); }
 
   Ember.run(function() {
-
     // Force +new Date to return the same result while scheduling
     // run.later timers. Otherwise: non-determinism!
     var now = +new Date();
