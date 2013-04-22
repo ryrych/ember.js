@@ -96,8 +96,40 @@ Backburner.prototype = {
     setTimeout(function() {
       self.run.apply(self, args);
     }, wait);
+  },
+
+  debounce: function(target, method /* , args, wait */) {
+    var self = this,
+        args = arguments,
+        wait = pop.call(args),
+        debouncee;
+
+    for (var i = 0, l = debouncees.length; i < l; i++) {
+      debouncee = debouncees[i];
+      if (debouncee[0] === target && debouncee[1] === method) { return; } // do nothing
+    }
+
+    debouncees.push([target, method]);
+
+    setTimeout(function() {
+      self.run.apply(self, args);
+
+      // remove debouncee
+      var index = -1;
+      for (var i = 0, l = debouncees.length; i < l; i++) {
+        debouncee = debouncees[i];
+        if (debouncee[0] === target && debouncee[1] === method) {
+          index = i;
+          break;
+        }
+      }
+
+      if (index > -1) { debouncees.splice(index, 1); }
+    }, wait);
   }
 };
+
+var debouncees = [];
 
 DeferredActionQueues = function(queueNames) {
   var queues = this.queues = {};
