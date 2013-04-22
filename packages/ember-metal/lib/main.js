@@ -25,3 +25,4 @@ require('ember-metal/observer');
 require('ember-metal/mixin');
 require('ember-metal/binding');
 require('ember-metal/run_loop');
+require('ember-metal/backburner');
