@@ -4,16 +4,19 @@ X error handling if action throws
 X stack tagging
 X run
 X next/later?
-- waterfall
-- ability to wrap flush - queue.aroundFlush = Ember.changeProperties
+X waterfall
+X handle nested runloops
 - autorun
+- debounce / coalescing laters
+- try/finally bullshit
 - onerror hook
-- handle nested runloops
+- ability to wrap flush - queue.aroundFlush = Ember.changeProperties
 
 */
 
 var slice = [].slice,
-    pop = [].pop;
+    pop = [].pop,
+    DeferredActionQueues;
 
 var Backburner = Ember.Backburner = function(queueNames) {
   this.queueNames = queueNames;
@@ -42,12 +45,12 @@ Backburner.prototype = {
 
   run: function(target, method /*, args */) {
     this.begin();
-    
+
     if (!method) {
       method = target;
       target = null;
     }
-    
+
     var args = arguments.length > 2 ? slice.call(arguments, 2) : undefined;
     method.apply(target, args);
     this.end();
@@ -95,7 +98,7 @@ DeferredActionQueues = function(queueNames) {
     queueName = queueNames[i];
     queues[queueName] = new Queue(queueName);
   }
-}
+};
 
 DeferredActionQueues.prototype = {
   queueNames: null,
@@ -104,7 +107,7 @@ DeferredActionQueues.prototype = {
   schedule: function(queueName, target, method, args, onceFlag, stack) {
     var queues = this.queues,
         queue = queues[queueName];
-    
+
     if (!queue) { throw new Error("You attempted to schedule an action in a queue (" + queueName + ") that doesn't exist"); }
 
     if (onceFlag) {
@@ -115,6 +118,11 @@ DeferredActionQueues.prototype = {
   },
 
   flush: function() {
+    while(!this.next()) {}
+  },
+
+  next: function() {
+    // Run first encountered item from first non empty queue.
     var queues = this.queues,
         queueNames = this.queueNames,
         queueName, queue;
@@ -122,8 +130,22 @@ DeferredActionQueues.prototype = {
     for (var i = 0, l = queueNames.length; i < l; i++) {
       queueName = queueNames[i];
       queue = queues[queueName];
-      queue.flush();
+
+      var action = queue.shift();
+      if (!action) { continue; }
+
+      var target = action[0],
+          method = action[1],
+          args   = action[2];
+
+      try {
+        method.apply(target, args);
+      } catch(e) {
+
+      }
+      return false;
     }
+    return true;
   }
 };
 
@@ -138,6 +160,10 @@ Queue.prototype = {
 
   push: function(target, method, args, stack) {
     this._queue.push([target, method, args, stack]);
+  },
+
+  shift: function() {
+    return this._queue.shift();
   },
 
   pushUnique: function(target, method, args, stack) {

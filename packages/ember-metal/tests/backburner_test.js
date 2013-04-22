@@ -59,6 +59,36 @@ test("next when passed a function", function() {
   stop();
 });
 
+
+test("actions scheduled on previous queue, start over from beginning", function() {
+  expect(5);
+
+  var bb = new Backburner(['one', 'two']),
+      step = 0;
+
+  bb.run(function() {
+    equal(step, 0, "0");
+    step++;
+
+    bb.schedule('two', null, function() {
+      equal(step, 1, "1");
+      step++;
+
+      bb.schedule('one', null, function() {
+        equal(step, 2, "2");
+        step++;
+      });
+    });
+
+    bb.schedule('two', null, function() {
+      equal(step, 3, "3");
+      step++;
+    });
+  });
+
+  equal(step, 4, "4");
+});
+
 test("runs can be nested", function() {
   expect(2);
 
