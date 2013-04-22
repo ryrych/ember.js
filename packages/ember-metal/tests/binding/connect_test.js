@@ -7,7 +7,7 @@ var previousPreventRunloop;
 function performTest(binding, a, b, get, set, connect) {
   if (connect === undefined) connect = function(){binding.connect(a);};
 
-  ok(!Ember.run.currentRunLoop, 'performTest should not have a currentRunLoop');
+  ok(!Ember.run.backburner.currentInstance, 'performTest should not have a backburner.currentInstance');
 
   equal(get(a, 'foo'), 'FOO', 'a should not have changed');
   equal(get(b, 'bar'), 'BAR', 'b should not have changed');
