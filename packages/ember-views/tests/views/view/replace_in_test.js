@@ -40,7 +40,7 @@ test("should remove previous elements when calling replaceIn()", function() {
   Ember.run(function() {
     view.replaceIn('#menu');
   });
-
+  // add more elements to view to make test more clear
   ok(viewElem.length === 1, "should have one element");
 
 });
